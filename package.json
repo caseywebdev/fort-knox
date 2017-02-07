@@ -1,0 +1,13 @@
+{
+  "name": "fort-knox",
+  "version": "0.0.1",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/caseywebdev/fort-knox"
+  },
+  "dependencies": {
+    "node-fetch": "1.6.3",
+    "underscore": "1.8.3"
+  }
+}
