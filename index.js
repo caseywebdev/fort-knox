@@ -14,11 +14,11 @@ const getEphemeral = (cache, key, fn) => {
 
 const toExpiresAt = duration => _.now() + ((duration - 60) * 1000);
 
-const getToken = ({authData, authMethod, tokenCache, vaultUrl}) =>
+const getToken = ({auth: {data, method}, tokenCache, url}) =>
   getEphemeral(tokenCache, 'token', () =>
-    fetch(`${vaultUrl}/v1/auth/${authMethod}/login`, {
+    fetch(`${url}/v1/auth/${method}/login`, {
       method: 'POST',
-      body: JSON.stringify(authData)
+      body: JSON.stringify(data)
     }).then(res => res.json())
       .then(({auth: {client_token: value, lease_duration: duration}}) => ({
         value,
@@ -26,10 +26,10 @@ const getToken = ({authData, authMethod, tokenCache, vaultUrl}) =>
       }))
   );
 
-const get = ({authData, authMethod, pathCache, tokenCache, vaultUrl}, path) =>
+const get = ({auth, pathCache, tokenCache, url}, path) =>
   getEphemeral(pathCache, path, () =>
-    getToken({authData, authMethod, tokenCache, vaultUrl}).then(token =>
-      fetch(`${vaultUrl}/v1/${path}`, {headers: {'X-Vault-Token': token}})
+    getToken({auth, tokenCache, url}).then(token =>
+      fetch(`${url}/v1/${path}`, {headers: {'X-Vault-Token': token}})
         .then(res => res.json())
         .then(({data: value, lease_duration: duration}) => ({
           value,
@@ -39,12 +39,11 @@ const get = ({authData, authMethod, pathCache, tokenCache, vaultUrl}, path) =>
   );
 
 module.exports = class {
-  constructor({authData, authMethod, vaultUrl}) {
-    this.authData = authData;
-    this.authMethod = authMethod;
+  constructor({auth: {data, method}, url}) {
+    this.auth = {data, method};
     this.pathCache = {};
     this.tokenCache = {};
-    this.vaultUrl = vaultUrl;
+    this.url = url;
   }
 
   get(path) {

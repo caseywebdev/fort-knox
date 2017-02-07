@@ -1,4 +1,4 @@
-# FortKnox
+# Fort Knox
 
 Get secrets from Vault.
 
@@ -6,12 +6,14 @@ Get secrets from Vault.
 const FortKnox = require('fort-knox');
 
 const vault = new FortKnox({
-  authMethod: 'approle',
-  authData: {
-    role_id: '...',
-    secret_id: '...'
+  auth: {
+    data: {
+      role_id: '...',
+      secret_id: '...'
+    },
+    method: 'approle'
   },
-  vaultUrl: '...'
+  url: '...'
 });
 
 vault.get('secret/my/database/password').then(value => console.log(value));
