@@ -1,4 +1,5 @@
 const _ = require('underscore');
+const {default: Promise} = require('better-promise');
 const fetch = require('node-fetch');
 
 const getOrSet = (cache, key, fn) =>
