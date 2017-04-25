@@ -15,12 +15,26 @@ const getEphemeral = (cache, key, fn) => {
 
 const toExpiresAt = duration => _.now() + ((duration - 60) * 1000);
 
+const checkForError = res =>
+  res.status < 400 ?
+  res.json() :
+  res.text().then(text => {
+    let error;
+    try {
+      error = new Error(JSON.parse(text).errors.join('\n'));
+    } catch (er) {
+      error = new Error(text || res.statusText);
+    }
+
+    throw error;
+  });
+
 const getToken = ({auth: {data, method}, tokenCache, url}) =>
   getEphemeral(tokenCache, 'token', () =>
     fetch(`${url}/v1/auth/${method}/login`, {
       method: 'POST',
       body: JSON.stringify(data)
-    }).then(res => res.json())
+    }).then(checkForError)
       .then(({auth: {client_token: value, lease_duration: duration}}) => ({
         value,
         expiresAt: toExpiresAt(duration)
@@ -29,14 +43,15 @@ const getToken = ({auth: {data, method}, tokenCache, url}) =>
 
 const get = ({auth, pathCache, tokenCache, url}, path) =>
   getEphemeral(pathCache, path, () =>
-    getToken({auth, tokenCache, url}).then(token =>
-      fetch(`${url}/v1/${path}`, {headers: {'X-Vault-Token': token}})
-        .then(res => res.json())
-        .then(({data: value, lease_duration: duration}) => ({
-          value,
-          expiresAt: toExpiresAt(duration)
-        }))
-    )
+    getToken({auth, tokenCache, url})
+      .then(token =>
+        fetch(`${url}/v1/${path}`, {headers: {'X-Vault-Token': token}})
+      )
+      .then(checkForError)
+      .then(({data: value, lease_duration: duration}) => ({
+        value,
+        expiresAt: toExpiresAt(duration)
+      }))
   );
 
 module.exports = class {
