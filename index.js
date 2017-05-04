@@ -8,16 +8,17 @@ const getOrSet = (cache, key, fn) =>
     throw er;
   }));
 
-const getEphemeral = (cache, key, padding, fn) =>
+const getEphemeral = (cache, key, fn) =>
   getOrSet(cache, key, fn).then(({expiresAt, value}) => {
-    const expired = _.now() > expiresAt - (padding * 1000);
-    if (!expired) return value;
+    if (Date.now() < expiresAt) return value;
 
     delete cache[key];
-    return getEphemeral(cache, key, padding, fn);
+    return getEphemeral(cache, key, fn);
   });
 
-const toExpiresAt = duration => new Date(_.now() + (duration * 1000));
+// Expire cached values at at 90% of duration.
+const toExpiresAt = duration =>
+  new Date(_.now() + Math.floor(0.9 * duration * 1000));
 
 const checkForError = res =>
   res.status < 400 ?
@@ -33,8 +34,8 @@ const checkForError = res =>
     throw error;
   });
 
-const getToken = ({auth: {data, method}, padding, tokenCache, url}) =>
-  getEphemeral(tokenCache, 'token', padding, () =>
+const getToken = ({auth: {data, method}, tokenCache, url}) =>
+  getEphemeral(tokenCache, 'token', () =>
     fetch(`${url}/v1/auth/${method}/login`, {
       method: 'POST',
       body: JSON.stringify(data)
@@ -45,9 +46,9 @@ const getToken = ({auth: {data, method}, padding, tokenCache, url}) =>
       }))
   );
 
-const get = ({auth, padding, pathCache, tokenCache, url}, path) =>
-  getEphemeral(pathCache, path, padding, () =>
-    getToken({auth, padding, tokenCache, url})
+const get = ({auth, pathCache, tokenCache, url}, path) =>
+  getEphemeral(pathCache, path, () =>
+    getToken({auth, tokenCache, url})
       .then(token =>
         fetch(`${url}/v1/${path}`, {headers: {'X-Vault-Token': token}})
       )
@@ -59,11 +60,11 @@ const get = ({auth, padding, pathCache, tokenCache, url}, path) =>
   );
 
 module.exports = class {
-  constructor({auth, padding = 0, url}) {
-    this.options = {auth, padding, pathCache: {}, tokenCache: {}, url};
+  constructor({auth, url}) {
+    this.options = {auth, pathCache: {}, tokenCache: {}, url};
   }
 
-  get(path, padding = this.padding) {
-    return get(_.extend({}, this.options, {padding}), path);
+  get(path) {
+    return get(this.options, path);
   }
 };
