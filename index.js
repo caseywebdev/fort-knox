@@ -3,17 +3,21 @@ const {default: Promise} = require('better-promise');
 const fetch = require('node-fetch');
 
 const getOrSet = (cache, key, fn) =>
-  cache[key] && typeof cache[key].then === 'function' ? cache[key] :
-  cache[key] ? Promise.resolve(cache[key]) :
-  cache[key] = Promise.resolve().then(fn).then(val => cache[key] = val);
+  cache[key] || (cache[key] = Promise.resolve().then(fn).catch(er => {
+    delete cache[key];
+    throw er;
+  }));
 
-const getEphemeral = (cache, key, fn) => {
-  const {[key]: {expiresAt = 0} = {}} = cache;
-  if (_.now() > expiresAt) delete cache[key];
-  return getOrSet(cache, key, fn).then(({value}) => value);
-};
+const getEphemeral = (cache, key, padding, fn) =>
+  getOrSet(cache, key, fn).then(({expiresAt, value}) => {
+    const expired = _.now() > expiresAt - (padding * 1000);
+    if (!expired) return value;
 
-const toExpiresAt = duration => _.now() + ((duration - 60) * 1000);
+    delete cache[key];
+    return getEphemeral(cache, key, padding, fn);
+  });
+
+const toExpiresAt = duration => new Date(_.now() + (duration * 1000));
 
 const checkForError = res =>
   res.status < 400 ?
@@ -29,8 +33,8 @@ const checkForError = res =>
     throw error;
   });
 
-const getToken = ({auth: {data, method}, tokenCache, url}) =>
-  getEphemeral(tokenCache, 'token', () =>
+const getToken = ({auth: {data, method}, padding, tokenCache, url}) =>
+  getEphemeral(tokenCache, 'token', padding, () =>
     fetch(`${url}/v1/auth/${method}/login`, {
       method: 'POST',
       body: JSON.stringify(data)
@@ -41,9 +45,9 @@ const getToken = ({auth: {data, method}, tokenCache, url}) =>
       }))
   );
 
-const get = ({auth, pathCache, tokenCache, url}, path) =>
-  getEphemeral(pathCache, path, () =>
-    getToken({auth, tokenCache, url})
+const get = ({auth, padding, pathCache, tokenCache, url}, path) =>
+  getEphemeral(pathCache, path, padding, () =>
+    getToken({auth, padding, tokenCache, url})
       .then(token =>
         fetch(`${url}/v1/${path}`, {headers: {'X-Vault-Token': token}})
       )
@@ -55,14 +59,11 @@ const get = ({auth, pathCache, tokenCache, url}, path) =>
   );
 
 module.exports = class {
-  constructor({auth: {data, method}, url}) {
-    this.auth = {data, method};
-    this.pathCache = {};
-    this.tokenCache = {};
-    this.url = url;
+  constructor({auth, padding = 0, url}) {
+    this.options = {auth, padding, pathCache: {}, tokenCache: {}, url};
   }
 
-  get(path) {
-    return get(this, path);
+  get(path, padding = this.padding) {
+    return get(_.extend({}, this.options, {padding}), path);
   }
 };
