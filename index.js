@@ -28,7 +28,7 @@ const checkForError = res =>
     try {
       error = new Error(JSON.parse(text).errors.join('\n'));
     } catch (er) {
-      error = new Error(text || res.statusText);
+      error = new Error(text || res.statusText || 'Unknown');
     }
 
     throw error;
