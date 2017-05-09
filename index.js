@@ -3,7 +3,7 @@ const {default: Promise} = require('better-promise');
 const fetch = require('node-fetch');
 
 const getOrSet = (cache, key, fn) =>
-  cache[key] || (cache[key] = Promise.resolve()).then(fn).catch(er => {
+  cache[key] || Promise.resolve().then(() => cache[key] = fn()).catch(er => {
     delete cache[key];
     throw er;
   });
