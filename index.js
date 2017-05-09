@@ -3,10 +3,10 @@ const {default: Promise} = require('better-promise');
 const fetch = require('node-fetch');
 
 const getOrSet = (cache, key, fn) =>
-  cache[key] || (cache[key] = Promise.resolve().then(fn).catch(er => {
+  cache[key] || (cache[key] = Promise.resolve()).then(fn).catch(er => {
     delete cache[key];
     throw er;
-  }));
+  });
 
 const getEphemeral = (cache, key, fn) =>
   getOrSet(cache, key, fn).then(({expiresAt, value}) => {
